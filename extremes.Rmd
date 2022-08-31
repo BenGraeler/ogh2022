@@ -1,0 +1,431 @@
+---
+title: "Extremes"
+author: "Benedikt Gräler"
+date: "2022-08-31"
+output: 
+  beamer_presentation:
+    fig_width: 10
+    fig_height: 6
+    slide_level: 2
+    includes:
+      in_header: "talk-style.tex"
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+```
+
+# Univariate Extremes
+
+## What is special about extremes?
+
+- Extremes are rare events / measurements
+  - few records in a spatial distributed scene
+  - few records in a time series
+  - both
+- by definition, we will only observe few extremes (if any) in a given sample 
+
+
+## What is special about extremes?
+
+```{r, echo=FALSE}
+library(evd)
+dcurveGEV <- function(x) dgev(x, loc = 10)
+gevSmpl <- rgev(3000, 10)
+
+hist(gevSmpl, n=20, freq=F, main="Histogram with GEV density", xlim=c(5,20))
+curve(dcurveGEV, col="red", add=T)
+```
+
+## What is special about extremes?
+
+```{r, echo=FALSE}
+dcurveLnorm <- function(x) dlnorm(x, mean(log(gevSmpl)), sd(log(gevSmpl)))
+hist(gevSmpl, n=20, freq=F, main = "Histogram with GEV and log-normal densities.", xlim = c(5,20))
+curve(dcurveGEV, col="red", add=T)
+curve(dcurveLnorm, col="blue", add=T)
+legend("topright", col=c("red", "blue"), legend=c("GEV", "log-normal"), lty=1)
+```
+
+## What is special about extremes?
+
+```{r, echo=FALSE}
+rateDensity <- function(x) dcurveGEV(x)/dcurveLnorm(x)
+curve(rateDensity, from = 5, to = 20, ylim=c(0,5), main="dgev/dlnorm", ylab="rate")
+```
+
+## What is special about extremes?
+
+```{r, echo=FALSE}
+rateDensity <- function(x) dcurveGEV(x)/dcurveLnorm(x)
+curve(dcurveGEV, from = 15, to = 25, ylab="density", col="red")
+curve(dcurveLnorm,  add=T, col="blue")
+legend("topright", col=c("red", "blue"), legend=c("GEV", "log-normal"), lty=1)
+```
+
+## Mathematical defintion of the distribution of extremes
+
+Let $X_{1},\dots ,X_{n}$ be a sequence of independent and identically distributed random variables with cumulative distribution function $F$ and let $M_{n}=\max(X_{1},\dots ,X_{n})$ denote the maximum.
+
+In theory, the exact distribution of the maximum can be derived:
+
+$${\begin{aligned}\Pr(M_{n}\leq z)&=\Pr(X_{1}\leq z,\dots ,X_{n}\leq z)\\&=\Pr(X_{1}\leq z)\cdots \Pr(X_{n}\leq z)=(F(z))^{n}.\end{aligned}}$$
+\footnotesize Source: https://en.wikipedia.org/wiki/Extreme_value_theory 
+
+## The Weibul
+
+```{r}
+plot(-50:50/10, dgev(-50:50/10, shape=-0.5), type = "l", ylab = "density", xlab="", main="Weibull")
+```
+
+
+## The Gumbel
+```{r}
+plot(-50:50/10, dgev(-50:50/10, shape=0), type = "l", ylab = "density", xlab="", main="Gumbel")
+```
+
+## The Fréchet
+```{r}
+plot(-50:50/10, dgev(-50:50/10, shape=0.5), type = "l", ylab = "density", xlab="", main="Frechet")
+```
+
+## The GEV distribution
+
+$$G(z) = \exp \left(-\left(1+s(z-a)/b\right)^{-1/s}\right)$$
+with  \verb?loc? = $a$, \verb?scale? = $b$ and \verb?shape? = $s$:
+
+\small
+```{r, eval=FALSE, echo=TRUE}
+dgev(x, loc=0, scale=1, shape=0, log = FALSE) 
+pgev(q, loc=0, scale=1, shape=0, lower.tail = TRUE) 
+qgev(p, loc=0, scale=1, shape=0, lower.tail = TRUE)
+rgev(n, loc=0, scale=1, shape=0)
+```
+
+- Weibull: $s < 0$
+- Gumbel: $s=0$
+- Frechet: $s > 0$
+
+## Block maxima
+
+select your maxima per block (typically temporal) to avoid (at least reduce) auto-correlation and be closer to an iid sample
+
+- month
+- annually
+- daily
+- \dots
+
+## Block maxima
+
+```{r}
+data("venice2")
+plot(as.numeric(rownames(venice2)), venice2[,1], ylab="sea level", main="annual maximum sea level in Venice", xlab="year")
+abline(-561.0071, 0.3462, col="grey")
+text(1900, 180, "0.35 cm/year" )
+```
+
+## Block Maxima
+
+```{r}
+hist(venice2[,1], n=20, main="annual maximum sea levels 1887 - 2011")
+```
+
+## Block maxima
+
+\small
+```{r, echo = TRUE, size="footnotesize"}
+fgev(venice2[,1])
+```
+
+## Block maxima
+
+```{r, echo = FALSE, size="small"}
+dcurveVeniceGEV <- function(x) dgev(x, 105.2995, 19.3543, -0.1463)
+dcurveVeniceLnorm <- function(x) dlnorm(x, mean(log(venice2[,1])), sd(log(venice2[,1])))
+
+hist(venice2[,1], n=20, main="annual maximum sea levels 1887 - 2011", freq=F)
+curve(dcurveVeniceGEV, add=T, col="red")
+curve(dcurveVeniceLnorm, add=T, col="blue")
+legend("topright", col=c("red", "blue"), legend=c("GEV", "log-normal"), lty=1)
+```
+
+
+## PoT method
+
+```{r}
+data(co2)
+acf(co2)
+```
+
+## PoT method
+
+```{r}
+plot(decompose(co2))
+```
+
+## PoT method
+
+```{r}
+co2Residuals <- na.omit(decompose(co2)$random)
+acf(co2Residuals)
+```
+
+## PoT method
+
+```{r}
+mrlplot(co2Residuals)
+abline(v = 0.22, col="grey")
+abline(0.22, -0.2, col="grey")
+```
+
+## PoT method
+
+```{r, size="tiny", echo=TRUE}
+fpot(co2Residuals, threshold = 0.22)
+```
+
+## PoT method
+
+```{r}
+hist(co2Residuals[co2Residuals >= 0.22], n=20, freq=FALSE, main="Histogram of PoT")
+curve(dgpd(x, 0.22, 0.2436, -0.3161), add=T)
+```
+
+
+## What is an retrun period?
+
+"On average, how many years will it take to observe an event this large/small?"
+
+This is $P(X \geq x) = 1/T$ where $X$ is your annual maximum variable and $T$ is the return period (typically 5, 10, 25, 50, 100, \dots years), $x$ is the "critical event".
+
+## For a given retrun period, what is the annual maximum water level in Venice? 
+
+```{r}
+cvVeniceGEV <- function(yr) qgev(1-1/yr, 105.2995, 19.3543, -0.1463) 
+cvVeniceLnorm <- function(yr) qlnorm(1-1/yr, mean(log(venice2[,1])), sd(log(venice2[,1]))) 
+
+curve(cvVeniceGEV, 2, 100, col="red", ylab="Critical Value", xlab="Return Period")
+curve(cvVeniceLnorm, add=TRUE, col="blue")
+legend("bottomright", col=c("red", "blue"), legend=c("GEV", "log-normal"), lty=1)
+
+# rateVenice <- function(x) dcurveVeniceGEV(x)/dcurveVeniceLnorm(x)
+# curve(rateVenice, 60, 200, ylim=c(0,3))
+```
+
+## Return Period - simulated example
+
+```{r}
+cvGEV <- function(yr) qgev(1-1/yr, loc = 10) 
+cvLnorm <- function(yr) qlnorm(1-1/yr, mean(log(gevSmpl)), sd(log(gevSmpl))) 
+
+curve(cvGEV, 2, 100, col="red", ylab="Critical Value", xlab="Return Period")
+curve(cvLnorm, add=TRUE, col="blue")
+legend("bottomright", col=c("red", "blue"), legend=c("GEV", "log-normal"), lty=1)
+```
+
+
+# Multivariate Extremes
+
+## Dependence
+
+- Once we look at more than one variable, we have to think about dependencies.
+- Correlation measures summarize dependence in a single number, but as for univariate statistics, a multivariate distribution has more characteristics than a single number 
+- while histograms are often the first step for univariate cases, scatter plots are the first choice for multivariate case 
+
+## Copulas
+
+- Data is only sometimes Gaussian
+- Most approaches based correlation/covariance matrices will assume a multivariate Gaussian distributions
+- a wider concept are __copulas__. Any continuous multivariate distribution $H$ with its $X_1, \dots X_n)$ marginal random variables can be decomposed into its marginal distribution functions $F_i$ and its copula $C$:
+$$ H(x_1, \dots, x_n) = C\left(F_1(x_1), \dots, F_n(x_n)\right)$$
+A copula can be perceived as a multivariate distribution on the unit hyper-cube $[0,1]^n$.
+
+## Copulas - Gaussian
+
+```{r}
+library(copula)
+par(mfrow=c(1,2))
+plot(rCopula(500, normalCopula(iTau(normalCopula(), 0.7))), asp=1, ylab="v", xlab="u", main="")
+plot(rCopula(500, normalCopula(iTau(normalCopula(), 0.3))), asp=1, ylab="v", xlab="u", main="")
+```
+
+
+## Copulas - Gumbel
+
+```{r}
+par(mfrow=c(1,2))
+plot(rCopula(500, gumbelCopula(iTau(gumbelCopula(), 0.7))), asp=1, ylab="u", xlab="u", main="")
+plot(rCopula(500, gumbelCopula(iTau(gumbelCopula(), 0.3))), asp=1, ylab="v", xlab="u", main="")
+```
+
+## Copulas - Student t
+
+```{r}
+par(mfrow=c(1,2))
+plot(rCopula(500, tCopula(iTau(tCopula(), 0.7))), asp=1, ylab="v", xlab="u", main="")
+plot(rCopula(500, tCopula(iTau(tCopula(), 0.3))), asp=1, ylab="v", xlab="u", main="")
+```
+
+## Copulas - Student t
+
+```{r}
+par(mfrow=c(1,2))
+plot(rCopula(500, tCopula(iTau(tCopula(df=0.3), 0.7), df=0.3)), asp=1, ylab="v", xlab="u", main="")
+plot(rCopula(500, tCopula(iTau(tCopula(df=0.3), 0.3), df=0.3)), asp=1, ylab="v", xlab="u", main="")
+```
+
+## More copulas
+
+https://copulatheque.org
+
+
+## Multivariate Extremes
+
+- What happens with the dependence if both margins become large?
+- Composite extremes is assessed via __upper/lower tail dependence__
+
+## Tail Dependence
+
+```{r, echo=TRUE}
+lambda(normalCopula(iTau(normalCopula(), 0.7)))
+```
+
+
+```{r, echo=TRUE}
+lambda(gumbelCopula(iTau(gumbelCopula(), 0.7)))
+```
+
+
+```{r, echo=TRUE}
+lambda(tCopula(iTau(tCopula(), 0.7)))
+```
+
+
+```{r, echo=TRUE}
+lambda(tCopula(iTau(tCopula(df=0.3), 0.7), df=0.3))
+```
+
+
+## Tail Dependence
+
+```{r, echo=TRUE}
+lambda(normalCopula(iTau(normalCopula(), 0.3)))
+```
+
+
+```{r, echo=TRUE}
+lambda(gumbelCopula(iTau(gumbelCopula(), 0.3)))
+```
+
+
+```{r, echo=TRUE}
+lambda(tCopula(iTau(tCopula(), 0.3)))
+```
+
+
+```{r, echo=TRUE}
+lambda(tCopula(iTau(tCopula(df=0.3), 0.3), df=0.3))
+```
+
+## Fitting a Copula
+
+```{r,include=FALSE, results='hide', warning=FALSE}
+library(VineCopula)
+library(VC2copula)
+```
+
+
+```{r, echo=TRUE, size="footnotesize"}
+aqPseudoObs <- pobs(cbind(airquality$Solar.R, 
+                          airquality$Temp))
+BiCopSelect(aqPseudoObs[,1], aqPseudoObs[,2])
+```
+
+## Fitting a Copula
+
+```{r}
+plot(rCopula(500, BiCop2copula(214, par=2.46, par2 = 0.2)), asp=1, ylab="v", xlab="u", main="")
+```
+
+## Fitting a Copula
+
+
+```{r}
+library(hexbin)
+plot(hexbin(rCopula(10000, BiCop2copula(214, par=2.46, par2 = 0.2)), xbins=20), ylab="v", xlab="u", main="", legend=FALSE)
+```
+
+## Multivariate Return Periods
+
+![alt text here](figures/comp_JRP.png)
+
+
+## Multivariate Return Periods
+
+![3d data set](figures/hess-2012-224-f04.pdf)
+
+## Multivariate Return Periods
+
+![Vine Copulas](figures/hess-2012-224-f01.png)
+
+
+## Multivariate Return Periods
+
+![comparison of critical events](figures/hess-2012-224-f06.pdf)
+
+# Spatial Extremes
+
+## Does that make any difference?
+
+```{r, out.height= "200px"}
+knitr::include_graphics("figures/ellipSymWireframe.pdf")
+```
+
+## Spatial Copulas - Margins
+
+![Marignal Distribution](figures/joker_hist.pdf)
+
+## Spatail Copula - distance
+
+![Spatially varying copulas](figures/jokerSpCopula1.pdf)
+
+## Spatail Copula - vine
+
+![Spatial Vine](figures/can_Vine.png)
+
+## Spatial Copulas Interpolation
+
+![Interpolated Surface](figures/qunatilePredWireFrame.pdf)
+
+## Spatail Copula - Comparison
+
+![different approaches](figures/boxplots_emergency.pdf)
+
+## Spatio-Temporal Copulas
+
+```{r, out.height= "200px"}
+knitr::include_graphics("figures/st-vine.png")
+```
+
+# Hands-on
+
+## Libraries to look at
+
+- copula
+- VineCopula
+- VC2copula
+- spcopula (only on GitHub, slight workaround needed for VC2copula)
+
+## Data sets to try and demos to follow
+
+- retry the code snippets in the underlying Rmd-file
+- use your own data set and check scatter plots of pseudo observations
+- data set uranium of the copula package
+- demo MRP of the spcopula package
+- demo pureSpVineCopula of the spcopula package
